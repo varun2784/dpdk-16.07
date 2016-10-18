@@ -567,6 +567,7 @@ typedef void (rte_mempool_obj_cb_t)(struct rte_mempool *mp,
 		void *opaque, void *obj, unsigned obj_idx);
 typedef rte_mempool_obj_cb_t rte_mempool_obj_ctor_t; /* compat */
 
+void rte_mempool_init(void);
 /**
  * A memory callback function for mempool.
  *

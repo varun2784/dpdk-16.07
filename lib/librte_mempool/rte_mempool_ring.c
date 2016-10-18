@@ -159,3 +159,14 @@ MEMPOOL_REGISTER_OPS(ops_mp_mc);
 MEMPOOL_REGISTER_OPS(ops_sp_sc);
 MEMPOOL_REGISTER_OPS(ops_mp_sc);
 MEMPOOL_REGISTER_OPS(ops_sp_mc);
+
+void
+rte_mempool_init()
+{
+	rte_mempool_register_ops(&ops_mp_mc);
+	rte_mempool_register_ops(&ops_sp_sc);
+	rte_mempool_register_ops(&ops_mp_sc);
+	rte_mempool_register_ops(&ops_sp_mc);
+
+	return;
+}

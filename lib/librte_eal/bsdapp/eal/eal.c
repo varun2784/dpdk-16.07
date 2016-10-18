@@ -194,13 +194,14 @@ rte_eal_config_create(void)
 	}
 	memcpy(rte_mem_cfg_addr, &early_mem_config, sizeof(early_mem_config));
 	rte_config.mem_config = (struct rte_mem_config *) rte_mem_cfg_addr;
+	rte_config.mem_config->mem_cfg_addr = (uintptr_t) rte_mem_cfg_addr;
 }
 
 /* attach to an existing shared memory config */
 static void
 rte_eal_config_attach(void)
 {
-	void *rte_mem_cfg_addr;
+	struct rte_mem_config *mem_config;
 	const char *pathname = eal_runtime_config_path();
 
 	if (internal_config.no_shconf)
@@ -212,13 +213,33 @@ rte_eal_config_attach(void)
 			rte_panic("Cannot open '%s' for rte_mem_config\n", pathname);
 	}
 
-	rte_mem_cfg_addr = mmap(NULL, sizeof(*rte_config.mem_config),
-				PROT_READ | PROT_WRITE, MAP_SHARED, mem_cfg_fd, 0);
-	close(mem_cfg_fd);
-	if (rte_mem_cfg_addr == MAP_FAILED)
+	mem_config = (struct rte_mem_config *) mmap(NULL, sizeof(*mem_config),
+					PROT_READ, MAP_SHARED, mem_cfg_fd, 0);
+	if (mem_config == MAP_FAILED)
 		rte_panic("Cannot mmap memory for rte_config\n");
+	rte_config.mem_config = mem_config;
+}
 
-	rte_config.mem_config = (struct rte_mem_config *) rte_mem_cfg_addr;
+static void
+rte_eal_config_reattach(void)
+{
+	struct rte_mem_config *mem_config;
+	void *rte_mem_cfg_addr;
+
+	if (internal_config.no_shconf)
+		return;
+
+	rte_mem_cfg_addr = (void *) (uintptr_t) rte_config.mem_config->mem_cfg_addr;
+
+	munmap(rte_config.mem_config, sizeof(struct rte_mem_config));
+	mem_config = (struct rte_mem_config *) mmap(rte_mem_cfg_addr, sizeof(*rte_config.mem_config),
+				PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, mem_cfg_fd, 0);
+	close(mem_cfg_fd);
+	if (mem_config == MAP_FAILED || mem_config != rte_mem_cfg_addr)
+		rte_panic("Cannot mmap memory for rte_config mem_config %p rte_mem_cfg_addr %p\n",
+			  mem_config, rte_mem_cfg_addr);
+
+	rte_config.mem_config = mem_config;
 }
 
 /* Detect if we are a primary or a secondary process */
@@ -254,6 +275,7 @@ rte_config_init(void)
 	case RTE_PROC_SECONDARY:
 		rte_eal_config_attach();
 		rte_eal_mcfg_wait_complete(rte_config.mem_config);
+		rte_eal_config_reattach();
 		break;
 	case RTE_PROC_AUTO:
 	case RTE_PROC_INVALID:
@@ -517,7 +539,7 @@ rte_eal_init(int argc, char **argv)
 		exit(1);
 
 	if (internal_config.no_hugetlbfs == 0 &&
-			internal_config.process_type != RTE_PROC_SECONDARY &&
+			//internal_config.process_type != RTE_PROC_SECONDARY &&
 			eal_hugepage_info_init() < 0)
 		rte_panic("Cannot get hugepage information\n");
 
